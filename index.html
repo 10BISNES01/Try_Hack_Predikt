@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictor Script with Open Data</title>
+    <script>
+        async function fetchData(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Ошибка загрузки данных");
+                return await response.json();
+            } catch (error) {
+                console.error("Ошибка: ", error);
+                return null;
+            }
+        }
+
+        function normalize(array) {
+            const mean = array.reduce((a, b) => a + b, 0) / array.length;
+            const std = Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / array.length);
+            return array.map(x => (x - mean) / std);
+        }
+
+        function linearRegression(X, y) {
+            const X_transpose = math.transpose(X);
+            const XTX = math.multiply(X_transpose, X);
+            const XTy = math.multiply(X_transpose, y);
+            const coefficients = math.lusolve(XTX, XTy);
+            return coefficients;
+        }
+
+        function predict(X, coefficients) {
+            return X.map(row => row.reduce((sum, value, index) => sum + value * coefficients[index], 0));
+        }
+
+        function meanSquaredError(y_true, y_pred) {
+            const errors = y_true.map((val, idx) => Math.pow(val - y_pred[idx], 2));
+            return errors.reduce((a, b) => a + b, 0) / errors.length;
+        }
+
+        function bettingProbability(predictions, threshold = 5) {
+            const favorableOutcomes = predictions.filter(p => p > threshold).length;
+            return (favorableOutcomes / predictions.length) * 100;
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            const dataUrl = "https://api.sampleapis.com/fakebettingdata/data"; // Пример открытого API
+            const rawData = await fetchData(dataUrl);
+
+            if (!rawData) {
+                document.getElementById("error").innerText = "Не удалось загрузить данные";
+                return;
+            }
+
+            const feature1 = rawData.map(item => item.feature1);
+            const feature2 = rawData.map(item => item.feature2);
+            const target = rawData.map(item => item.target);
+
+            const normalizedFeature1 = normalize(feature1);
+            const normalizedFeature2 = normalize(feature2);
+
+            const X = normalizedFeature1.map((f1, i) => [f1, normalizedFeature2[i]]);
+            const y = target;
+
+            const splitIndex = Math.floor(X.length * 0.8);
+            const X_train = X.slice(0, splitIndex);
+            const y_train = y.slice(0, splitIndex);
+            const X_test = X.slice(splitIndex);
+            const y_test = y.slice(splitIndex);
+
+            const coefficients = linearRegression(X_train, y_train);
+            const predictions = predict(X_test, coefficients);
+            const mse = meanSquaredError(y_test, predictions);
+            const probability = bettingProbability(predictions);
+
+            document.getElementById("coefficients").innerText = `Коэффициенты: ${coefficients}`;
+            document.getElementById("mse").innerText = `Среднеквадратичная ошибка: ${mse}`;
+            document.getElementById("probability").innerText = `Вероятность для ставки: ${probability.toFixed(2)}%`;
+        });
+    </script>
+</head>
+<body>
+    <h1>Результаты линейной регрессии с открытыми данными</h1>
+    <p id="coefficients">Коэффициенты: рассчитываются...</p>
+    <p id="mse">Среднеквадратичная ошибка: рассчитывается...</p>
+    <p id="probability">Вероятность для ставки: рассчитывается...</p>
+    <p id="error" style="color:red;"></p>
+    <p>Откройте консоль браузера для деталей работы алгоритма.</p>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.6.0/math.min.js"></script>
+</body>
+</html>
